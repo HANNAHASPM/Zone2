@@ -163,7 +163,12 @@ input:focus-visible, select:focus-visible { outline: 2px solid var(--sea); outli
   font-family: var(--display); font-weight: 600; font-size: 1.5rem;
   line-height: 1.15; font-variant-numeric: tabular-nums;
 }
+.tile .unit {
+  font-family: var(--mono); font-size: 0.62rem; letter-spacing: 0.05em;
+  color: var(--ink-faint);
+}
 .tile[data-k="km"] .value { color: var(--route); }
+.tile[data-k="speed"] .value { color: var(--route); }
 .tile[data-k="kj"] .value { color: var(--done); }
 .tile.absent .value { color: var(--ink-faint); }
 
@@ -234,11 +239,12 @@ textarea {
   <section class="card">
     <h2>Today's ride</h2>
     <div class="live">
-      <div class="tile absent" data-k="km"><span class="label">Distance</span><span class="value" id="r-km">—</span></div>
-      <div class="tile absent" data-k="kj"><span class="label">Work</span><span class="value" id="r-kj">—</span></div>
+      <div class="tile absent" data-k="km"><span class="label">Distance</span><span class="value" id="r-km">—</span><span class="unit">km</span></div>
+      <div class="tile absent" data-k="speed"><span class="label">Speed</span><span class="value" id="r-speed">—</span><span class="unit">km/h</span></div>
+      <div class="tile absent" data-k="w"><span class="label">Power</span><span class="value" id="r-w">—</span><span class="unit">watts</span></div>
+      <div class="tile absent" data-k="rpm"><span class="label">Cadence</span><span class="value" id="r-rpm">—</span><span class="unit">rpm</span></div>
+      <div class="tile absent" data-k="kj"><span class="label">Work</span><span class="value" id="r-kj">—</span><span class="unit">kJ</span></div>
       <div class="tile" data-k="time"><span class="label">Time</span><span class="value" id="r-time">0:00</span></div>
-      <div class="tile absent" data-k="w"><span class="label">Watts</span><span class="value" id="r-w">—</span></div>
-      <div class="tile absent" data-k="rpm"><span class="label">Cadence</span><span class="value" id="r-rpm">—</span></div>
     </div>
     <div class="row">
       <button class="go" id="connect">Connect bike</button>
@@ -443,6 +449,11 @@ function onBikeData(event) {
   // straight into km/h through a fixed virtual gear, which flatters light fast
   // spinning badly. Power is the only grounded number, so we convert it to a real
   // road speed. One standard rider for everybody, so the tour stays fair.
+  if (typeof d.power_w === "number") {
+    // Shown speed is the modelled road speed, the same figure that drives distance.
+    tileValue("r-speed", speedFromPower(Math.max(0, d.power_w)).toFixed(1));
+  }
+
   if (typeof d.power_w === "number" && dt > 0 && dt < 10) {
     rideKm += speedFromPower(Math.max(0, d.power_w)) * (dt / 3600);
   } else if (typeof d.speed_kph === "number" && dt > 0 && dt < 10) {
@@ -555,6 +566,7 @@ function resetRide() {
   if (tick) { clearInterval(tick); tick = null; }
   $("finish").disabled = true;
   tileValue("r-km", "—", true);
+  tileValue("r-speed", "—", true);
   tileValue("r-kj", "—", true);
   tileValue("r-w", "—", true);
   tileValue("r-rpm", "—", true);
