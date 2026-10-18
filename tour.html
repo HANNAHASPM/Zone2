@@ -1,0 +1,705 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Family World Tour</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: the distance total and next stop lead, then the route as a vertical
+   journey you scroll down, then the live ride, then the records. */
+:root {
+  --night:    #0b1a24;
+  --deep:     #122634;
+  --panel:    #17303f;
+  --rule:     #24465a;
+  --ink:      #eaf4f7;
+  --ink-dim:  #8fb0bf;
+  --ink-faint:#5d8094;
+
+  --route:    #ffc247;
+  --rider:    #ff7a59;
+  --done:     #43c6a0;
+  --sea:      #3fa7d6;
+
+  --display: "Fredoka", ui-rounded, system-ui, sans-serif;
+  --sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+
+  color-scheme: dark;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--night);
+  background-image: radial-gradient(ellipse 120% 70% at 50% 0%, #15364a 0%, var(--night) 60%);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+}
+
+.wrap {
+  max-width: 760px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 18px 36px;
+  display: flex; flex-direction: column; gap: 18px;
+}
+
+a { color: var(--sea); }
+
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.topbar .back { font-size: 0.82rem; text-decoration: none; }
+
+/* --- headline --- */
+
+.headline { display: flex; flex-direction: column; gap: 4px; }
+.headline .eyebrow {
+  font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--ink-faint);
+}
+.headline h1 {
+  font-family: var(--display); font-weight: 700;
+  font-size: clamp(2.6rem, 14vw, 4rem); line-height: 1;
+  margin: 0; color: var(--route); letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.headline h1 span { font-size: 0.4em; color: var(--ink-dim); margin-left: 4px; }
+.headline .sub { font-size: 0.95rem; color: var(--ink-dim); }
+.headline .sub strong { color: var(--ink); font-weight: 600; }
+
+.progress { height: 10px; border-radius: 5px; background: var(--deep); overflow: hidden; border: 1px solid var(--rule); }
+.progress i { display: block; height: 100%; background: linear-gradient(90deg, var(--done), var(--route)); }
+
+/* --- route --- */
+
+.card {
+  background: var(--panel); border: 1px solid var(--rule);
+  border-radius: 12px; padding: 16px;
+}
+.card h2 {
+  font-family: var(--display); font-weight: 600; font-size: 1.15rem;
+  margin: 0 0 12px; letter-spacing: 0.01em;
+}
+
+.route { list-style: none; margin: 0; padding: 0; position: relative; }
+.route::before {
+  content: ""; position: absolute; left: 8px; top: 10px; bottom: 10px;
+  width: 2px; background: var(--rule);
+}
+.stop { position: relative; padding: 7px 0 7px 30px; display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.stop::before {
+  content: ""; position: absolute; left: 3px; top: 13px;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--deep); border: 2px solid var(--rule);
+}
+.stop.done::before { background: var(--done); border-color: var(--done); }
+.stop.done .name { color: var(--ink-dim); }
+.stop.next::before { background: var(--rider); border-color: var(--rider); box-shadow: 0 0 0 4px rgba(255,122,89,.2); }
+.stop.next .name { color: var(--rider); font-weight: 600; }
+.stop .name { font-size: 0.92rem; min-width: 0; }
+.stop .km { font-family: var(--mono); font-size: 0.78rem; color: var(--ink-faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stop.done .km { color: var(--done); }
+
+/* --- controls --- */
+
+button {
+  font-family: var(--sans); font-size: 0.9rem; font-weight: 500;
+  color: var(--ink); background: var(--deep);
+  border: 1px solid var(--rule); border-radius: 8px;
+  padding: 10px 16px; cursor: pointer; min-height: 44px;
+}
+button:hover:not(:disabled) { background: #1b3b4e; }
+button:disabled { opacity: 0.4; cursor: default; }
+button:focus-visible { outline: 2px solid var(--sea); outline-offset: 2px; }
+button.go { background: var(--route); border-color: var(--route); color: #2a1e00; font-weight: 600; }
+button.go:hover:not(:disabled) { background: #ffcd66; }
+button.save { background: var(--done); border-color: var(--done); color: #042019; font-weight: 600; }
+button.save:hover:not(:disabled) { background: #57d6b1; }
+button.small { padding: 7px 12px; min-height: 38px; font-size: 0.82rem; }
+
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+input[type="text"], select {
+  font-family: var(--sans); font-size: 0.9rem;
+  padding: 9px 11px; min-height: 44px;
+  background: var(--deep); color: var(--ink);
+  border: 1px solid var(--rule); border-radius: 8px;
+  min-width: 0;
+}
+input[type="text"] { flex: 1 1 140px; }
+select { flex: 1 1 140px; }
+input:focus-visible, select:focus-visible { outline: 2px solid var(--sea); outline-offset: 1px; }
+
+.msg {
+  border-radius: 8px; padding: 11px 13px; font-size: 0.86rem;
+  background: var(--deep); border: 1px solid var(--rule);
+  border-left: 3px solid var(--sea); color: var(--ink-dim);
+}
+.msg[data-kind="win"] { border-left-color: var(--done); color: #a8ead6; }
+.msg[data-kind="error"] { border-left-color: var(--rider); color: #ffc0ae; }
+.msg strong { color: var(--ink); font-weight: 600; }
+
+/* --- live ride --- */
+
+.live { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.tile {
+  background: var(--deep); border: 1px solid var(--rule); border-radius: 9px;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 1px; min-width: 0;
+}
+.tile .label {
+  font-family: var(--mono); font-size: 0.62rem; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--ink-faint);
+}
+.tile .value {
+  font-family: var(--display); font-weight: 600; font-size: 1.5rem;
+  line-height: 1.15; font-variant-numeric: tabular-nums;
+}
+.tile[data-k="km"] .value { color: var(--route); }
+.tile[data-k="kj"] .value { color: var(--done); }
+.tile.absent .value { color: var(--ink-faint); }
+
+/* --- records --- */
+
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.86rem; }
+th, td { text-align: right; padding: 9px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th {
+  font-family: var(--mono); font-size: 0.64rem; letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--ink-faint); font-weight: 500;
+}
+td { font-variant-numeric: tabular-nums; }
+td:first-child { font-weight: 600; }
+tr:last-child td { border-bottom: none; }
+.best { color: var(--route); }
+
+.trophies { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 14px; }
+.trophy {
+  background: var(--deep); border: 1px solid var(--rule); border-radius: 9px; padding: 11px 13px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.trophy .what {
+  font-family: var(--mono); font-size: 0.62rem; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ink-faint);
+}
+.trophy .who { font-family: var(--display); font-weight: 600; font-size: 1.1rem; color: var(--route); }
+.trophy .howmuch { font-size: 0.78rem; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+
+.empty { color: var(--ink-faint); font-size: 0.88rem; }
+
+.log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.log li {
+  display: flex; justify-content: space-between; gap: 10px;
+  padding: 8px 0; border-bottom: 1px solid var(--rule); font-size: 0.85rem;
+}
+.log li:last-child { border-bottom: none; }
+.log .who { font-weight: 600; }
+.log .detail { font-family: var(--mono); font-size: 0.78rem; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+
+.note { font-size: 0.82rem; color: var(--ink-faint); line-height: 1.55; margin: 10px 0 0; }
+textarea {
+  width: 100%; min-height: 120px; margin-top: 10px;
+  font-family: var(--mono); font-size: 0.72rem;
+  background: var(--deep); color: var(--ink);
+  border: 1px solid var(--rule); border-radius: 8px; padding: 9px;
+}
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <a class="back" href="./">← Zone 2 ride</a>
+    <span class="link" id="bikeState" style="font-family:var(--mono);font-size:0.68rem;letter-spacing:0.07em;text-transform:uppercase;color:var(--ink-faint)">Bike not connected</span>
+  </div>
+
+  <section class="headline">
+    <span class="eyebrow">Ridden together, from Hamilton</span>
+    <h1 id="totalKm">0<span>km</span></h1>
+    <div class="progress"><i id="progressBar" style="width:0%"></i></div>
+    <p class="sub" id="nextStop">Next stop: <strong>Dunkeld</strong> — 30 km to go.</p>
+  </section>
+
+  <section class="card">
+    <h2>Today's ride</h2>
+    <div class="live">
+      <div class="tile absent" data-k="km"><span class="label">Distance</span><span class="value" id="r-km">—</span></div>
+      <div class="tile absent" data-k="kj"><span class="label">Work</span><span class="value" id="r-kj">—</span></div>
+      <div class="tile" data-k="time"><span class="label">Time</span><span class="value" id="r-time">0:00</span></div>
+      <div class="tile absent" data-k="w"><span class="label">Watts</span><span class="value" id="r-w">—</span></div>
+      <div class="tile absent" data-k="rpm"><span class="label">Cadence</span><span class="value" id="r-rpm">—</span></div>
+    </div>
+    <div class="row">
+      <button class="go" id="connect">Connect bike</button>
+      <select id="riderPick" aria-label="Who is riding"></select>
+      <button class="save" id="finish" disabled>Finish &amp; save</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <input type="text" id="newRider" placeholder="Add a rider's name" maxlength="20">
+      <button class="small" id="addRider">Add</button>
+    </div>
+    <div class="msg" id="msg" hidden style="margin-top:12px"></div>
+  </section>
+
+  <section class="card">
+    <h2>The route</h2>
+    <ul class="route" id="route"></ul>
+  </section>
+
+  <section class="card">
+    <h2>Records</h2>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Rider</th><th>Total km</th><th>Rides</th><th>Best ride</th>
+            <th>Best kJ</th><th>Best 5 min</th><th>Best cadence</th>
+          </tr>
+        </thead>
+        <tbody id="recordsBody"></tbody>
+      </table>
+    </div>
+    <p class="empty" id="recordsEmpty">No rides saved yet. Connect the bike, pedal, then tap Finish &amp; save.</p>
+    <div class="trophies" id="trophies"></div>
+  </section>
+
+  <section class="card">
+    <h2>Recent rides</h2>
+    <ul class="log" id="log"></ul>
+    <p class="empty" id="logEmpty">Nothing here yet.</p>
+  </section>
+
+  <section class="card">
+    <h2>Backup</h2>
+    <p class="note">Everything is saved in this browser only. It won't appear on other
+    devices, and clearing Chrome's site data erases it. Copy a backup now and then,
+    and paste it back if it ever disappears.</p>
+    <div class="row" style="margin-top:12px">
+      <button class="small" id="exportBtn">Copy backup</button>
+      <button class="small" id="importBtn">Paste backup</button>
+    </div>
+    <textarea id="dataBox" hidden aria-label="Backup data"></textarea>
+  </section>
+
+</div>
+
+<script>
+"use strict";
+
+/* ===== route: real road distances north-east from Hamilton, Victoria ===== */
+const ROUTE = [
+  { name: "Dunkeld", km: 30 },
+  { name: "Halls Gap", km: 95 },
+  { name: "Ararat", km: 160 },
+  { name: "Ballarat", km: 255 },
+  { name: "Geelong", km: 355 },
+  { name: "Melbourne", km: 430 },
+  { name: "Phillip Island", km: 570 },
+  { name: "Lakes Entrance", km: 790 },
+  { name: "Eden", km: 1050 },
+  { name: "Canberra", km: 1330 },
+  { name: "Sydney", km: 1620 },
+  { name: "Port Macquarie", km: 2010 },
+  { name: "Byron Bay", km: 2360 },
+  { name: "Brisbane", km: 2525 },
+  { name: "Bundaberg", km: 2885 },
+  { name: "Mackay", km: 3485 },
+  { name: "Townsville", km: 3875 },
+  { name: "Cairns", km: 4225 }
+];
+const FINISH = ROUTE[ROUTE.length - 1].km;
+
+const STORE_KEY = "zone2-tour-v1";
+const FTMS_SERVICE = 0x1826, INDOOR_BIKE_DATA = 0x2ad2;
+
+const $ = id => document.getElementById(id);
+
+/* ===== saved state ===== */
+let store = { riders: [], log: [] };
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.log)) {
+        store = { riders: Array.isArray(parsed.riders) ? parsed.riders : [], log: parsed.log };
+      }
+    }
+  } catch (err) { /* unreadable storage; start fresh */ }
+}
+
+function save() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
+  catch (err) { say("Couldn't save to this browser's storage. Copy a backup before closing the page.", "error"); }
+}
+
+function totalKm() { return store.log.reduce((a, r) => a + r.km, 0); }
+
+/* ===== live ride ===== */
+let device = null, wakeLock = null;
+let riding = false, startedAt = null, lastAt = null, tick = null;
+let rideKm = 0, rideJoules = 0, powerSum = 0, powerN = 0, cadSum = 0, cadN = 0;
+let window5 = [], best5 = 0, bestCad = 0, lastDistance = null;
+
+function parseIndoorBikeData(view) {
+  const flags = view.getUint16(0, true);
+  let i = 2;
+  const out = { flags };
+  const need = n => { if (i + n > view.byteLength) throw new Error("short packet"); };
+  const u16 = () => { need(2); const v = view.getUint16(i, true); i += 2; return v; };
+  const s16 = () => { need(2); const v = view.getInt16(i, true); i += 2; return v; };
+  const u8  = () => { need(1); const v = view.getUint8(i); i += 1; return v; };
+  const u24 = () => { need(3); const v = view.getUint8(i) | (view.getUint8(i+1) << 8) | (view.getUint8(i+2) << 16); i += 3; return v; };
+
+  if (!(flags & 0x0001)) out.speed_kph = u16() * 0.01;
+  if (flags & 0x0002) out.avg_speed_kph = u16() * 0.01;
+  if (flags & 0x0004) out.cadence_rpm = u16() * 0.5;
+  if (flags & 0x0008) out.avg_cadence_rpm = u16() * 0.5;
+  if (flags & 0x0010) out.distance_m = u24();
+  if (flags & 0x0020) out.resistance = s16();
+  if (flags & 0x0040) out.power_w = s16();
+  if (flags & 0x0080) out.avg_power_w = s16();
+  if (flags & 0x0100) { out.total_energy_kcal = u16(); out.energy_per_hour_kcal = u16(); out.energy_per_min_kcal = u8(); }
+  if (flags & 0x0200) out.heart_rate_bpm = u8();
+  if (flags & 0x0400) out.met = u8() * 0.1;
+  if (flags & 0x0800) out.elapsed_s = u16();
+  if (flags & 0x1000) out.remaining_s = u16();
+  return out;
+}
+
+function say(html, kind) {
+  const el = $("msg");
+  el.innerHTML = html;
+  el.dataset.kind = kind || "info";
+  el.hidden = false;
+}
+
+function tileValue(id, text, absent) {
+  $(id).textContent = text;
+  $(id).closest(".tile").classList.toggle("absent", !!absent);
+}
+
+function clock(sec) {
+  const s = Math.max(0, Math.floor(sec));
+  const m = Math.floor(s / 60);
+  return m + ":" + String(s % 60).padStart(2, "0");
+}
+
+function onBikeData(event) {
+  let d;
+  try { d = parseIndoorBikeData(event.target.value); }
+  catch (err) { return; }
+
+  const now = performance.now();
+  if (!riding) {
+    riding = true;
+    startedAt = now;
+    $("finish").disabled = false;
+    tick = setInterval(() => tileValue("r-time", clock((performance.now() - startedAt) / 1000)), 500);
+  }
+
+  const dt = lastAt === null ? 0 : (now - lastAt) / 1000;
+  lastAt = now;
+
+  // Distance: integrate speed when the bike sends it, else use its odometer deltas.
+  if (typeof d.speed_kph === "number" && dt > 0 && dt < 10) {
+    rideKm += d.speed_kph * (dt / 3600);
+  } else if (typeof d.distance_m === "number") {
+    if (lastDistance !== null && d.distance_m >= lastDistance) rideKm += (d.distance_m - lastDistance) / 1000;
+    lastDistance = d.distance_m;
+  }
+
+  if (typeof d.power_w === "number") {
+    const p = Math.max(0, d.power_w);
+    if (dt > 0 && dt < 10) rideJoules += p * dt;
+    powerSum += p; powerN++;
+    window5.push({ t: now, p });
+    while (window5.length && now - window5[0].t > 300000) window5.shift();
+    if (now - window5[0].t >= 290000) {
+      const avg = window5.reduce((a, s) => a + s.p, 0) / window5.length;
+      if (avg > best5) best5 = avg;
+    }
+    tileValue("r-w", Math.round(p));
+  }
+
+  if (typeof d.cadence_rpm === "number") {
+    cadSum += d.cadence_rpm; cadN++;
+    if (d.cadence_rpm > bestCad) bestCad = d.cadence_rpm;
+    tileValue("r-rpm", Math.round(d.cadence_rpm));
+  }
+
+  tileValue("r-km", rideKm.toFixed(2));
+  tileValue("r-kj", Math.round(rideJoules / 1000));
+}
+
+async function connect() {
+  if (!navigator.bluetooth) {
+    say("This browser can't talk to Bluetooth. Use <strong>Chrome</strong> on Android, " +
+        "or <strong>Bluefy</strong> on iPad.", "error");
+    return;
+  }
+  $("connect").disabled = true;
+  try {
+    device = await navigator.bluetooth.requestDevice({
+      filters: [{ services: [FTMS_SERVICE] }], optionalServices: [FTMS_SERVICE]
+    });
+    device.addEventListener("gattserverdisconnected", () => {
+      $("bikeState").textContent = "Bike disconnected";
+      $("connect").disabled = false;
+      lastAt = null;
+    });
+    const server = await device.gatt.connect();
+    const service = await server.getPrimaryService(FTMS_SERVICE);
+    const ch = await service.getCharacteristic(INDOOR_BIKE_DATA);
+    await ch.startNotifications();
+    ch.addEventListener("characteristicvaluechanged", onBikeData);
+    $("bikeState").textContent = "Bike connected";
+    $("bikeState").style.color = "var(--done)";
+    say("Connected. Start pedalling and the kilometres begin counting.");
+    try { wakeLock = await navigator.wakeLock.request("screen"); } catch (err) { /* ok */ }
+  } catch (err) {
+    $("connect").disabled = false;
+    if (!err || err.name !== "NotFoundError") {
+      say("Couldn't connect: <strong>" + (err && err.message ? err.message : err) + "</strong>", "error");
+    } else {
+      say("No bike picked. Pedal a few seconds to wake it, close the Yesoul app, and try again.");
+    }
+  }
+}
+
+function finishRide() {
+  const name = $("riderPick").value;
+  if (!name) { say("Pick who was riding first, or add a name below.", "error"); return; }
+  if (rideKm < 0.05) { say("That ride is too short to save.", "error"); return; }
+
+  const before = totalKm();
+  const savedKm = rideKm;
+  const minutes = startedAt === null ? 0 : (performance.now() - startedAt) / 60000;
+
+  store.log.unshift({
+    name,
+    date: new Date().toISOString().slice(0, 10),
+    km: Math.round(rideKm * 100) / 100,
+    kj: Math.round(rideJoules / 1000),
+    minutes: Math.round(minutes),
+    avgPower: powerN ? Math.round(powerSum / powerN) : null,
+    avgCadence: cadN ? Math.round(cadSum / cadN) : null,
+    best5: best5 ? Math.round(best5) : null,
+    bestCadence: bestCad ? Math.round(bestCad) : null
+  });
+  if (store.log.length > 400) store.log.length = 400;
+  save();
+
+  const after = totalKm();
+  const passed = ROUTE.filter(s => s.km > before && s.km <= after);
+  render();
+  resetRide();
+
+  if (passed.length) {
+    say("🎉 <strong>" + name + "</strong> got the family to <strong>" +
+        passed.map(s => s.name).join(" and ") + "</strong>!", "win");
+  } else {
+    const next = ROUTE.find(s => s.km > after);
+    say("Saved. <strong>" + name + "</strong> added " + savedKm.toFixed(2) + " km" +
+        (next ? " — " + (next.km - after).toFixed(1) + " km to " + next.name + "." : "."), "win");
+  }
+}
+
+function resetRide() {
+  riding = false; startedAt = null; lastAt = null;
+  rideKm = 0; rideJoules = 0; powerSum = powerN = cadSum = cadN = 0;
+  window5 = []; best5 = 0; bestCad = 0; lastDistance = null;
+  if (tick) { clearInterval(tick); tick = null; }
+  $("finish").disabled = true;
+  tileValue("r-km", "—", true);
+  tileValue("r-kj", "—", true);
+  tileValue("r-w", "—", true);
+  tileValue("r-rpm", "—", true);
+  $("r-time").textContent = "0:00";
+}
+
+/* ===== riders ===== */
+function allRiders() {
+  const fromLog = store.log.map(r => r.name);
+  return Array.from(new Set(store.riders.concat(fromLog)));
+}
+
+function renderRiders() {
+  const sel = $("riderPick");
+  const current = sel.value;
+  const names = allRiders();
+  sel.innerHTML = names.length
+    ? names.map(n => '<option>' + escapeHtml(n) + '</option>').join("")
+    : '<option value="">Add a rider →</option>';
+  if (current && names.includes(current)) sel.value = current;
+}
+
+$("addRider").addEventListener("click", () => {
+  const name = $("newRider").value.trim();
+  if (!name) return;
+  if (!allRiders().includes(name)) { store.riders.push(name); save(); }
+  $("newRider").value = "";
+  renderRiders();
+  $("riderPick").value = name;
+});
+$("newRider").addEventListener("keydown", e => { if (e.key === "Enter") $("addRider").click(); });
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/* ===== rendering ===== */
+function renderHeadline() {
+  const total = totalKm();
+  $("totalKm").innerHTML = Math.round(total) + "<span>km</span>";
+  $("progressBar").style.width = Math.min(100, (total / FINISH) * 100) + "%";
+  const next = ROUTE.find(s => s.km > total);
+  $("nextStop").innerHTML = next
+    ? "Next stop: <strong>" + next.name + "</strong> — " + (next.km - total).toFixed(1) + " km to go."
+    : "<strong>Cairns reached.</strong> The whole east coast, done.";
+}
+
+function renderRoute() {
+  const total = totalKm();
+  const nextIdx = ROUTE.findIndex(s => s.km > total);
+  $("route").innerHTML = ROUTE.map((s, k) => {
+    const cls = s.km <= total ? "done" : (k === nextIdx ? "next" : "");
+    const right = s.km <= total ? "reached" : (s.km - total).toFixed(0) + " km";
+    return '<li class="stop ' + cls + '"><span class="name">' + escapeHtml(s.name) +
+           '</span><span class="km">' + right + '</span></li>';
+  }).join("");
+}
+
+function renderRecords() {
+  const names = allRiders().filter(n => store.log.some(r => r.name === n));
+  $("recordsEmpty").hidden = names.length > 0;
+
+  const rows = names.map(n => {
+    const mine = store.log.filter(r => r.name === n);
+    return {
+      name: n,
+      km: mine.reduce((a, r) => a + r.km, 0),
+      rides: mine.length,
+      bestRide: Math.max.apply(null, mine.map(r => r.km)),
+      bestKj: Math.max.apply(null, mine.map(r => r.kj || 0)),
+      best5: Math.max.apply(null, mine.map(r => r.best5 || 0)),
+      bestCad: Math.max.apply(null, mine.map(r => r.bestCadence || 0))
+    };
+  }).sort((a, b) => b.km - a.km);
+
+  const topOf = key => rows.length ? Math.max.apply(null, rows.map(r => r[key])) : 0;
+  const tops = { km: topOf("km"), rides: topOf("rides"), bestRide: topOf("bestRide"),
+                 bestKj: topOf("bestKj"), best5: topOf("best5"), bestCad: topOf("bestCad") };
+
+  const mark = (v, key, text) =>
+    '<td class="' + (v > 0 && v === tops[key] ? "best" : "") + '">' + text + '</td>';
+
+  $("recordsBody").innerHTML = rows.map(r =>
+    "<tr><td>" + escapeHtml(r.name) + "</td>" +
+    mark(r.km, "km", r.km.toFixed(1)) +
+    mark(r.rides, "rides", r.rides) +
+    mark(r.bestRide, "bestRide", r.bestRide.toFixed(1) + " km") +
+    mark(r.bestKj, "bestKj", r.bestKj ? r.bestKj + " kJ" : "—") +
+    mark(r.best5, "best5", r.best5 ? r.best5 + " W" : "—") +
+    mark(r.bestCad, "bestCad", r.bestCad ? r.bestCad + " rpm" : "—") +
+    "</tr>"
+  ).join("");
+
+  const holder = key => {
+    const win = rows.find(r => r[key] === tops[key] && tops[key] > 0);
+    return win ? win.name : null;
+  };
+  const trophies = [
+    { what: "Furthest overall", key: "km", fmt: v => v.toFixed(1) + " km" },
+    { what: "Longest single ride", key: "bestRide", fmt: v => v.toFixed(1) + " km" },
+    { what: "Hardest worker", key: "bestKj", fmt: v => v + " kJ in one ride" },
+    { what: "Spinniest legs", key: "bestCad", fmt: v => v + " rpm" }
+  ].filter(t => holder(t.key));
+
+  $("trophies").innerHTML = trophies.map(t =>
+    '<div class="trophy"><span class="what">' + t.what + '</span><span class="who">' +
+    escapeHtml(holder(t.key)) + '</span><span class="howmuch">' + t.fmt(tops[t.key]) + '</span></div>'
+  ).join("");
+}
+
+function renderLog() {
+  const recent = store.log.slice(0, 12);
+  $("logEmpty").hidden = recent.length > 0;
+  $("log").innerHTML = recent.map(r =>
+    '<li><span class="who">' + escapeHtml(r.name) + '</span><span class="detail">' +
+    r.km.toFixed(1) + " km · " + (r.kj ? r.kj + " kJ · " : "") + r.minutes + " min · " + r.date +
+    '</span></li>'
+  ).join("");
+}
+
+function render() {
+  renderHeadline();
+  renderRoute();
+  renderRecords();
+  renderLog();
+  renderRiders();
+}
+
+/* ===== backup ===== */
+$("exportBtn").addEventListener("click", async () => {
+  const json = JSON.stringify(store);
+  try {
+    await navigator.clipboard.writeText(json);
+    say("Backup copied. Paste it into a note or email it to yourself.", "win");
+  } catch (err) {
+    const box = $("dataBox");
+    box.hidden = false;
+    box.value = json;
+    box.select();
+    say("Copy the text below and keep it somewhere safe.");
+  }
+});
+
+$("importBtn").addEventListener("click", () => {
+  const box = $("dataBox");
+  if (box.hidden) {
+    box.hidden = false;
+    box.value = "";
+    box.placeholder = "Paste a backup here, then tap Paste backup again.";
+    box.focus();
+    say("Paste the backup text into the box, then tap <strong>Paste backup</strong> once more.");
+    return;
+  }
+  try {
+    const parsed = JSON.parse(box.value.trim());
+    if (!parsed || !Array.isArray(parsed.log)) throw new Error("that doesn't look like a backup");
+    store = { riders: Array.isArray(parsed.riders) ? parsed.riders : [], log: parsed.log };
+    save();
+    render();
+    box.hidden = true;
+    say("Backup restored — " + store.log.length + " rides loaded.", "win");
+  } catch (err) {
+    say("Couldn't read that: " + err.message, "error");
+  }
+});
+
+$("connect").addEventListener("click", connect);
+$("finish").addEventListener("click", finishRide);
+
+load();
+render();
+if (!navigator.bluetooth) {
+  say("This browser can't talk to Bluetooth. Use <strong>Chrome</strong> on Android, or " +
+      "<strong>Bluefy</strong> on iPad. The records below still work.", "error");
+}
+</script>
+</body>
+</html>
