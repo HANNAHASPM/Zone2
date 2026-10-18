@@ -218,7 +218,42 @@ textarea {
   border: 1px solid var(--rule); border-radius: 8px; padding: 9px;
 }
 
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+/* --- arrival celebration --- */
+
+#party {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  padding: max(20px, env(safe-area-inset-left, 0px)) 20px;
+  background: rgba(7, 18, 26, 0.93);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+}
+#partyCanvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+.party-card {
+  position: relative; text-align: center; max-width: 440px;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  animation: pop .45s cubic-bezier(.2,1.4,.4,1) both;
+}
+@keyframes pop { from { transform: scale(.75); opacity: 0 } to { transform: scale(1); opacity: 1 } }
+
+.party-card .banner {
+  font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--route);
+}
+.party-card .town {
+  font-family: var(--display); font-weight: 700;
+  font-size: clamp(2.4rem, 13vw, 4rem); line-height: 1.02;
+  color: var(--route); margin: 0; text-wrap: balance;
+}
+.party-card .who { font-size: 1.05rem; color: var(--ink); }
+.party-card .who strong { color: var(--done); }
+.party-card .where { font-size: 0.9rem; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.party-card button { margin-top: 8px; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+  .party-card { animation: none; }
+}
 </style>
 </head>
 <body>
@@ -307,6 +342,17 @@ textarea {
     </div>
     <textarea id="dataBox" hidden aria-label="Backup data"></textarea>
   </section>
+
+  <div id="party" hidden role="dialog" aria-modal="true" aria-labelledby="partyTown">
+    <canvas id="partyCanvas" aria-hidden="true"></canvas>
+    <div class="party-card">
+      <span class="banner" id="partyBanner">You made it to</span>
+      <h2 class="town" id="partyTown">Dunkeld</h2>
+      <p class="who" id="partyWho"></p>
+      <p class="where" id="partyWhere"></p>
+      <button class="go" id="partyClose">Keep riding →</button>
+    </div>
+  </div>
 
 </div>
 
@@ -409,6 +455,120 @@ function speedFromPower(watts) {
     if (need < watts * eff) lo = v; else hi = v;
   }
   return ((lo + hi) / 2) * 3.6;              // km/h
+}
+
+/* ===== arrival celebration ===== */
+let confettiStop = null;
+
+function fanfare() {
+  // Short rising arpeggio. Runs off the tap that saved the ride, which counts as
+  // the user gesture browsers require before audio will play.
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const notes = [523.25, 659.25, 783.99, 1046.50];   // C5 E5 G5 C6
+    notes.forEach((hz, i) => {
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.value = hz;
+      const t = ctx.currentTime + i * 0.12;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.5);
+    });
+    setTimeout(() => { try { ctx.close(); } catch (e) {} }, 1600);
+  } catch (err) { /* no audio; the visuals carry it */ }
+}
+
+function confetti() {
+  const canvas = $("partyCanvas");
+  const ctx = canvas.getContext("2d");
+  const dpr = window.devicePixelRatio || 1;
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function size() {
+    canvas.width = Math.round(canvas.clientWidth * dpr);
+    canvas.height = Math.round(canvas.clientHeight * dpr);
+  }
+  size();
+
+  const colours = ["#ffc247", "#ff7a59", "#43c6a0", "#3fa7d6", "#eaf4f7"];
+  const w = () => canvas.width / dpr, h = () => canvas.height / dpr;
+  const bits = [];
+  const count = reduced ? 40 : 150;
+  for (let i = 0; i < count; i++) {
+    bits.push({
+      x: Math.random() * w(),
+      y: -20 - Math.random() * h() * 0.6,
+      vx: (Math.random() - 0.5) * 1.6,
+      vy: 1.6 + Math.random() * 2.6,
+      size: 5 + Math.random() * 7,
+      rot: Math.random() * Math.PI,
+      spin: (Math.random() - 0.5) * 0.22,
+      colour: colours[Math.floor(Math.random() * colours.length)]
+    });
+  }
+
+  let frames = 0;
+  const limit = reduced ? 60 : 320;
+  let raf = null;
+
+  function frame() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w(), h());
+    const fade = frames > limit - 60 ? Math.max(0, (limit - frames) / 60) : 1;
+    for (const b of bits) {
+      b.x += b.vx; b.y += b.vy; b.rot += b.spin;
+      b.vy += 0.015;
+      if (b.y > h() + 20 && frames < limit - 80) {
+        b.y = -20; b.x = Math.random() * w();
+      }
+      ctx.save();
+      ctx.translate(b.x, b.y);
+      ctx.rotate(b.rot);
+      ctx.globalAlpha = fade;
+      ctx.fillStyle = b.colour;
+      ctx.fillRect(-b.size / 2, -b.size / 4, b.size, b.size / 2);
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+    frames++;
+    if (frames < limit) raf = requestAnimationFrame(frame);
+  }
+  raf = requestAnimationFrame(frame);
+
+  return () => {
+    if (raf) cancelAnimationFrame(raf);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w(), h());
+  };
+}
+
+function celebrate(towns, rider, total) {
+  const many = towns.length > 1;
+  $("partyBanner").textContent = many ? "In one ride you reached" : "You made it to";
+  $("partyTown").textContent = many
+    ? towns.slice(0, -1).join(", ") + " and " + towns[towns.length - 1]
+    : towns[0];
+  $("partyWho").innerHTML = "<strong>" + escapeHtml(rider) + "</strong> got the family there.";
+  const next = ROUTE.find(s => s.km > total);
+  $("partyWhere").textContent = next
+    ? Math.round(total) + " km ridden · next stop " + next.name + ", " + (next.km - total).toFixed(0) + " km away"
+    : Math.round(total) + " km ridden · the whole route, finished";
+
+  $("party").hidden = false;
+  confettiStop = confetti();
+  fanfare();
+  $("partyClose").focus();
+}
+
+function closeParty() {
+  $("party").hidden = true;
+  if (confettiStop) { confettiStop(); confettiStop = null; }
 }
 
 function say(html, kind) {
@@ -550,8 +710,10 @@ function finishRide() {
   resetRide();
 
   if (passed.length) {
+    const towns = passed.map(s => s.name);
     say("🎉 <strong>" + name + "</strong> got the family to <strong>" +
-        passed.map(s => s.name).join(" and ") + "</strong>!", "win");
+        towns.join(" and ") + "</strong>!", "win");
+    celebrate(towns, name, after);
   } else {
     const next = ROUTE.find(s => s.km > after);
     say("Saved. <strong>" + name + "</strong> added " + savedKm.toFixed(2) + " km" +
@@ -736,6 +898,11 @@ $("importBtn").addEventListener("click", () => {
 
 $("connect").addEventListener("click", connect);
 $("finish").addEventListener("click", finishRide);
+$("partyClose").addEventListener("click", closeParty);
+$("party").addEventListener("click", e => { if (e.target.id === "party") closeParty(); });
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && !$("party").hidden) closeParty();
+});
 
 load();
 render();
