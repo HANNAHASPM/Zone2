@@ -7,9 +7,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
-/* Layout: the band gauge is the page's spine - smoothed power reads against a
-   target range, with the fast/slow signal pair (power, heart rate) below it
-   and session accounting last. */
+/* Layout: the band gauge is the page's spine — smoothed power read against a
+   target range — then the live signals, the trace, this ride's totals, and
+   saved history last. */
 :root {
   --ground:   #0e1214;
   --panel:    #171e21;
@@ -22,8 +22,8 @@
   --in:       #8fc93a;
   --under:    #4aa3c7;
   --over:     #e2714a;
-  --hr:       #d1527a;
   --cadence:  #5cc8d7;
+  --distance: #f0a63c;
 
   --sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
@@ -34,6 +34,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 body {
   margin: 0;
@@ -56,10 +57,13 @@ body {
   gap: 14px;
 }
 
+a { color: var(--cadence); }
+
 header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
 h1 { font-size: 1rem; font-weight: 600; margin: 0; flex: 1 1 auto; letter-spacing: 0.01em; }
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.topbar .away { font-size: 0.82rem; text-decoration: none; }
 
-.links { display: flex; gap: 14px; flex-wrap: wrap; }
 .link {
   font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.07em;
   text-transform: uppercase; color: var(--ink-faint);
@@ -68,18 +72,23 @@ h1 { font-size: 1rem; font-weight: 600; margin: 0; flex: 1 1 auto; letter-spacin
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-faint); flex: none; }
 .link[data-on="1"] { color: var(--in); }
 .link[data-on="1"] .dot { background: var(--in); box-shadow: 0 0 0 3px rgba(143,201,58,.16); }
+.link[data-on="rec"] { color: var(--over); }
+.link[data-on="rec"] .dot { background: var(--over); box-shadow: 0 0 0 3px rgba(226,113,74,.18); }
 
 button {
   font-family: var(--sans); font-size: 0.875rem; font-weight: 500;
   color: var(--ink); background: var(--panel-2);
   border: 1px solid var(--rule); border-radius: 6px;
-  padding: 9px 15px; cursor: pointer; min-height: 42px;
+  padding: 9px 15px; cursor: pointer; min-height: 44px;
 }
 button:hover:not(:disabled) { background: #28343a; }
 button:disabled { opacity: 0.4; cursor: default; }
 button:focus-visible { outline: 2px solid var(--cadence); outline-offset: 2px; }
 button.primary { background: var(--in); border-color: var(--in); color: #121a06; font-weight: 600; }
 button.primary:hover:not(:disabled) { background: #a0d84f; }
+button.stop { background: var(--over); border-color: var(--over); color: #2a0d04; font-weight: 600; }
+button.stop:hover:not(:disabled) { background: #e9866a; }
+button.small { padding: 7px 12px; min-height: 38px; font-size: 0.82rem; }
 
 .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 
@@ -89,19 +98,18 @@ button.primary:hover:not(:disabled) { background: #a0d84f; }
   padding: 11px 13px; font-size: 0.85rem; color: var(--ink-dim);
 }
 .msg[data-kind="error"] { border-left-color: var(--over); color: #f2b6a4; }
+.msg[data-kind="win"] { border-left-color: var(--in); color: #cfe9a8; }
 .msg strong { color: var(--ink); font-weight: 600; }
 .msg code { font-family: var(--mono); font-size: 0.8rem; color: var(--cadence); }
 
-/* --- band gauge: the spine --- */
+/* --- band gauge --- */
 
 .gauge {
   background: var(--panel); border: 1px solid var(--rule);
   border-radius: 10px; padding: 16px;
   display: flex; flex-direction: column; gap: 12px;
 }
-
 .gauge-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-
 .smoothed { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .smoothed .label {
   font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.1em;
@@ -119,10 +127,8 @@ button.primary:hover:not(:disabled) { background: #a0d84f; }
   letter-spacing: 0.1em; text-transform: uppercase;
   padding: 7px 13px; border-radius: 5px;
   background: var(--panel-2); color: var(--ink-faint);
-  border: 1px solid var(--rule);
-  white-space: nowrap;
+  border: 1px solid var(--rule); white-space: nowrap;
 }
-
 [data-band="in"]    .smoothed .value { color: var(--in); }
 [data-band="in"]    .verdict { background: rgba(143,201,58,.14); color: var(--in); border-color: rgba(143,201,58,.4); }
 [data-band="under"] .smoothed .value { color: var(--under); }
@@ -133,26 +139,24 @@ button.primary:hover:not(:disabled) { background: #a0d84f; }
 .bar { position: relative; height: 34px; border-radius: 5px; background: var(--panel-2); overflow: hidden; }
 .bar .target { position: absolute; top: 0; bottom: 0; background: rgba(143,201,58,.17); border-left: 1px solid rgba(143,201,58,.55); border-right: 1px solid rgba(143,201,58,.55); }
 .bar .needle { position: absolute; top: -2px; bottom: -2px; width: 3px; background: var(--ink); border-radius: 2px; transition: left .25s ease; }
-@media (prefers-reduced-motion: reduce) { .bar .needle { transition: none; } }
 .bar-scale {
   display: flex; justify-content: space-between;
   font-family: var(--mono); font-size: 0.66rem; color: var(--ink-faint);
   font-variant-numeric: tabular-nums;
 }
-
 .band-set { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--ink-dim); }
 .band-set label { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); }
 input[type="number"] {
   font-family: var(--mono); font-size: 0.9rem; font-variant-numeric: tabular-nums;
-  width: 72px; padding: 7px 9px; min-height: 40px;
+  width: 76px; padding: 7px 9px; min-height: 42px;
   background: var(--panel-2); color: var(--ink);
   border: 1px solid var(--rule); border-radius: 5px;
 }
-input[type="number"]:focus-visible { outline: 2px solid var(--cadence); outline-offset: 1px; }
+input:focus-visible { outline: 2px solid var(--cadence); outline-offset: 1px; }
 
 /* --- live signals --- */
 
-.signals { display: grid; grid-template-columns: repeat(auto-fit, minmax(116px, 1fr)); gap: 10px; }
+.signals { display: grid; grid-template-columns: repeat(auto-fit, minmax(108px, 1fr)); gap: 10px; }
 .cell {
   background: var(--panel); border: 1px solid var(--rule); border-radius: 8px;
   padding: 12px 14px 10px; display: flex; flex-direction: column; gap: 1px; min-width: 0;
@@ -165,10 +169,11 @@ input[type="number"]:focus-visible { outline: 2px solid var(--cadence); outline-
   font-family: var(--mono); font-weight: 600; font-variant-numeric: tabular-nums;
   font-size: 1.7rem; line-height: 1.1; letter-spacing: -0.015em;
 }
-.cell .unit { font-family: var(--mono); font-size: 0.66rem; color: var(--ink-faint); }
+.cell .unit { font-family: var(--mono); font-size: 0.66rem; color: var(--ink-faint); letter-spacing: 0.04em; }
 .cell.absent .value { color: var(--ink-faint); }
 .cell[data-metric="cadence"] .value { color: var(--cadence); }
-.cell[data-metric="hr"] .value { color: var(--hr); }
+.cell[data-metric="speed"] .value { color: var(--distance); }
+.cell[data-metric="distance"] .value { color: var(--distance); }
 
 /* --- trace --- */
 
@@ -178,12 +183,9 @@ input[type="number"]:focus-visible { outline: 2px solid var(--cadence); outline-
   font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.09em;
   text-transform: uppercase; color: var(--ink-faint); margin-bottom: 8px;
 }
-.key { display: flex; gap: 12px; }
-.key span { display: flex; align-items: center; gap: 5px; }
-.swatch { width: 14px; height: 2px; border-radius: 1px; }
 canvas { display: block; width: 100%; height: 150px; max-width: 100%; }
 
-/* --- session accounting --- */
+/* --- summary --- */
 
 .session {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
@@ -199,6 +201,24 @@ canvas { display: block; width: 100%; height: 150px; max-width: 100%; }
 .stat .value.good { color: var(--in); }
 .stat.absent .value { color: var(--ink-faint); }
 
+/* --- history --- */
+
+.card { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 14px; }
+.card h2 {
+  font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink-dim); margin: 0 0 12px; font-weight: 500;
+}
+.rides { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.rides li {
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px;
+  padding: 10px 0; border-bottom: 1px solid var(--rule); font-size: 0.85rem;
+}
+.rides li:last-child { border-bottom: none; }
+.rides .when { font-weight: 600; }
+.rides .figures { font-family: var(--mono); font-size: 0.76rem; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.rides .inband { color: var(--in); }
+.empty { color: var(--ink-faint); font-size: 0.86rem; margin: 0; }
+
 details { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; }
 summary {
   padding: 12px 14px; cursor: pointer; list-style: none;
@@ -213,23 +233,33 @@ details[open] summary::before { content: "▾ "; }
 .note strong { color: var(--ink); font-weight: 600; }
 .hex { font-family: var(--mono); font-size: 0.75rem; color: var(--cadence); word-break: break-all; }
 .count { font-family: var(--mono); font-size: 0.7rem; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+textarea {
+  width: 100%; min-height: 110px;
+  font-family: var(--mono); font-size: 0.72rem;
+  background: var(--panel-2); color: var(--ink);
+  border: 1px solid var(--rule); border-radius: 6px; padding: 9px;
+}
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
 <div class="wrap">
 
-  <header>
+  <div class="topbar">
     <h1>Zone 2 Ride</h1>
-    <div class="links">
-      <span class="link" id="link-bike" data-on="0"><span class="dot"></span>Bike</span>
-      <span class="link" id="link-hr" data-on="0"><span class="dot"></span>Heart rate</span>
-    </div>
+    <a class="away" href="./tour.html">Family tour →</a>
+  </div>
+
+  <header>
+    <span class="link" id="bikeState" data-on="0"><span class="dot"></span>Bike not connected</span>
+    <span class="link" id="recState" data-on="0"><span class="dot"></span>Not recording</span>
   </header>
 
   <div class="actions">
-    <button class="primary" id="connectBike">Connect bike</button>
-    <button id="connectHr">Connect HR strap</button>
-    <button id="reset">Reset ride</button>
+    <button class="primary" id="connect">Connect bike</button>
+    <button id="start" disabled>Start ride</button>
+    <button class="stop" id="stop" disabled>Stop &amp; save</button>
   </div>
 
   <div class="msg" id="msg" hidden></div>
@@ -268,8 +298,11 @@ details[open] summary::before { content: "▾ "; }
     <div class="cell absent" data-metric="cadence">
       <span class="label">Cadence</span><span class="value" id="v-cadence">—</span><span class="unit">rpm</span>
     </div>
-    <div class="cell absent" data-metric="hr">
-      <span class="label">Heart rate</span><span class="value" id="v-hr">—</span><span class="unit">bpm</span>
+    <div class="cell absent" data-metric="speed">
+      <span class="label">Speed</span><span class="value" id="v-speed">—</span><span class="unit">km/h</span>
+    </div>
+    <div class="cell absent" data-metric="distance">
+      <span class="label">Distance</span><span class="value" id="v-distance">—</span><span class="unit">km</span>
     </div>
     <div class="cell" data-metric="time">
       <span class="label">Elapsed</span><span class="value" id="v-elapsed">0:00</span><span class="unit">mm:ss</span>
@@ -278,56 +311,64 @@ details[open] summary::before { content: "▾ "; }
 
   <div class="trace">
     <div class="trace-head">
-      <span>Ride trace</span>
-      <span class="key">
-        <span><span class="swatch" style="background:var(--in)"></span>Power</span>
-        <span><span class="swatch" style="background:var(--hr)"></span>HR</span>
-      </span>
+      <span>Power trace</span>
+      <span id="traceNote">Target band shaded</span>
     </div>
-    <canvas id="chart" aria-label="Power and heart rate over the ride, with the target band shaded"></canvas>
+    <canvas id="chart" aria-label="Power over the ride with the target band shaded"></canvas>
   </div>
 
   <div class="session">
     <div class="stat"><span class="label">Time in band</span><span class="value good" id="s-inband">0:00</span></div>
     <div class="stat"><span class="label">In band</span><span class="value" id="s-pct">—</span></div>
+    <div class="stat"><span class="label">Distance</span><span class="value" id="s-km">—</span></div>
+    <div class="stat"><span class="label">Avg speed</span><span class="value" id="s-speed">—</span></div>
     <div class="stat"><span class="label">Avg power</span><span class="value" id="s-avg">—</span></div>
     <div class="stat"><span class="label">Avg cadence</span><span class="value" id="s-cad">—</span></div>
-    <div class="stat absent"><span class="label">Avg HR</span><span class="value" id="s-hr">—</span></div>
     <div class="stat"><span class="label">Work</span><span class="value" id="s-kj">—</span></div>
-    <div class="stat absent"><span class="label">Pw:Hr drift</span><span class="value" id="s-decouple">—</span></div>
   </div>
+
+  <section class="card">
+    <h2>Recent rides</h2>
+    <ul class="rides" id="rides"></ul>
+    <p class="empty" id="ridesEmpty">No rides saved yet. Connect the bike, tap Start ride, then Stop &amp; save when you're done.</p>
+  </section>
 
   <details>
     <summary>Setting your band</summary>
     <div class="pane">
-      <p class="note">You don't need an FTP test to start. Ride your usual hour at the heart rate
-      you already treat as zone 2, and watch what the <strong>30-second average power</strong> settles
-      at once your HR is steady — roughly 10 minutes in, since HR lags. That number is your
-      zone 2 power. Set the band about 15 W either side of it and steer by power from then on,
-      using HR only as a sanity check.</p>
-      <p class="note">The 30-second average is what the gauge judges, not the instant figure.
-      Flywheel power estimates jump around with every pedal stroke, and chasing the raw number
-      would have you surging all hour.</p>
-      <p class="note"><strong>Pw:Hr drift</strong> compares power-per-heartbeat in the first half of the
-      ride against the second half. Under about 5% means you held a true aerobic effort.
-      Much more than that means the pace was too hard to be zone 2, however it felt at the time.
-      It needs both a bike and an HR connection, and at least 20 minutes.</p>
+      <p class="note">You don't need an FTP test. Ride your usual hour at the effort you already
+      treat as zone 2 and watch where the <strong>30-second average power</strong> settles once
+      you're warm, roughly ten minutes in. That number is your zone 2 power. Set the band about
+      15 W either side and steer by power from then on.</p>
+      <p class="note">The gauge judges the 30-second average, not the instant figure. Flywheel
+      power estimates jump with every pedal stroke, and chasing the raw number would have you
+      surging all hour.</p>
+      <p class="note">Speed and distance come from converting your watts into a real road speed,
+      not from the bike's own speed reading — the bike turns pedalling rate straight into km/h,
+      which flatters light fast spinning. Same calculation as the family tour page, so the two
+      agree. 100 W is about 26 km/h; 140 W about 29 km/h.</p>
     </div>
   </details>
 
   <details>
-    <summary>Protocol</summary>
+    <summary>Protocol &amp; backup</summary>
     <div class="pane">
       <p class="note" id="p-device">No bike connected.</p>
       <p class="note" id="p-reports"></p>
       <p class="note">Last packet: <span class="hex" id="p-hex">—</span></p>
       <div class="actions">
-        <button id="copy">Copy CSV</button>
+        <button class="small" id="copyCsv">Copy ride CSV</button>
         <span class="count"><span id="p-count">0</span> samples</span>
       </div>
+      <p class="note">Saved rides live in this browser only — clearing Chrome's site data erases
+      them. Copy a backup now and then and paste it into a note.</p>
+      <div class="actions">
+        <button class="small" id="exportBtn">Copy backup</button>
+        <button class="small" id="importBtn">Paste backup</button>
+      </div>
+      <textarea id="dataBox" hidden aria-label="Backup data"></textarea>
       <p class="note">Power on this bike is estimated from cadence and resistance, not measured.
-      Treat it as repeatable rather than calibrated — consistent between your own rides,
-      but not comparable to a power meter.</p>
+      Treat it as repeatable between your own rides rather than calibrated against a power meter.</p>
     </div>
   </details>
 
@@ -339,11 +380,10 @@ details[open] summary::before { content: "▾ "; }
 const FTMS_SERVICE     = 0x1826;
 const INDOOR_BIKE_DATA = 0x2ad2;
 const MACHINE_FEATURE  = 0x2acc;
-const HR_SERVICE       = 0x180d;
-const HR_MEASUREMENT   = 0x2a37;
 
-const SMOOTH_MS = 30000;   // zone 2 is judged on a 30s average
-const STORE_KEY = "zone2-band";
+const SMOOTH_MS = 30000;
+const BAND_KEY  = "zone2-band";
+const RIDES_KEY = "zone2-rides-v1";
 
 const MACHINE_FEATURE_BITS = [
   "average speed","cadence","total distance","inclination","elevation gain","pace",
@@ -352,42 +392,29 @@ const MACHINE_FEATURE_BITS = [
   "user data retention"
 ];
 
-const CSV_FIELDS = ["t_s","power_w","power_30s","cadence_rpm","speed_kph","hr_bpm","in_band","flags","raw_hex"];
+const CSV_FIELDS = ["t_s","power_w","power_30s","cadence_rpm","speed_kph","distance_km","resistance","in_band","flags","raw_hex"];
 
 const $ = id => document.getElementById(id);
 
-let bikeDevice = null, hrDevice = null, wakeLock = null;
-let startedAt = null, tick = null;
-let samples = [];        // {t, power, cadence, speed, hr, inBand}
-let recent = [];         // {t, power} within the smoothing window
-let rows = [];
-let latestHr = null;
-let powerSum = 0, powerN = 0, cadSum = 0, cadN = 0, hrSum = 0, hrN = 0;
-let joules = 0, inBandMs = 0, lastAt = null;
+/* ===== band ===== */
 let band = { low: 120, high: 160 };
-
-/* ---------- band persistence ---------- */
 try {
-  const saved = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
+  const saved = JSON.parse(localStorage.getItem(BAND_KEY) || "null");
   if (saved && Number.isFinite(saved.low) && Number.isFinite(saved.high)) band = saved;
-} catch (err) { /* storage unavailable; defaults stand */ }
-
+} catch (err) { /* storage unavailable */ }
 $("bandLow").value = band.low;
 $("bandHigh").value = band.high;
 
 function readBand() {
-  const low = Number($("bandLow").value);
-  const high = Number($("bandHigh").value);
+  const low = Number($("bandLow").value), high = Number($("bandHigh").value);
   if (Number.isFinite(low) && Number.isFinite(high) && high > low) {
     band = { low, high };
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(band)); } catch (err) { /* ignore */ }
+    try { localStorage.setItem(BAND_KEY, JSON.stringify(band)); } catch (err) { /* ignore */ }
   }
   paintBand();
   drawTrace();
 }
-
 function gaugeMax() { return Math.max(300, Math.ceil((band.high * 1.6) / 50) * 50); }
-
 function paintBand() {
   const max = gaugeMax();
   $("barMax").textContent = max + " W";
@@ -395,11 +422,39 @@ function paintBand() {
   t.style.left = (band.low / max * 100) + "%";
   t.style.width = ((band.high - band.low) / max * 100) + "%";
 }
-
 $("bandLow").addEventListener("change", readBand);
 $("bandHigh").addEventListener("change", readBand);
 
-/* ---------- FTMS Indoor Bike Data decoder (GATT 4.9.1) ---------- */
+/* ===== saved rides ===== */
+let rides = [];
+function loadRides() {
+  try {
+    const raw = localStorage.getItem(RIDES_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (parsed && Array.isArray(parsed.rides)) rides = parsed.rides;
+  } catch (err) { /* start empty */ }
+}
+function saveRides() {
+  try { localStorage.setItem(RIDES_KEY, JSON.stringify({ rides })); }
+  catch (err) { say("Couldn't save to this browser's storage — copy a backup before closing.", "error"); }
+}
+
+/* ===== speed model (identical to the family tour page) =====
+   P = (Crr·m·g·v + ½·rho·CdA·v³) / efficiency, solved for v by bisection. */
+function speedFromPower(watts) {
+  if (!(watts > 0)) return 0;
+  const g = 9.81, rho = 1.2, eff = 0.97;
+  const mass = 80, CdA = 0.32, Crr = 0.005;
+  let lo = 0, hi = 30;
+  for (let i = 0; i < 40; i++) {
+    const v = (lo + hi) / 2;
+    const need = Crr * mass * g * v + 0.5 * rho * CdA * v * v * v;
+    if (need < watts * eff) lo = v; else hi = v;
+  }
+  return ((lo + hi) / 2) * 3.6;
+}
+
+/* ===== FTMS decoder (GATT 4.9.1) ===== */
 function parseIndoorBikeData(view) {
   const flags = view.getUint16(0, true);
   let i = 2;
@@ -410,7 +465,7 @@ function parseIndoorBikeData(view) {
   const u8  = () => { need(1); const v = view.getUint8(i);        i += 1; return v; };
   const u24 = () => { need(3); const v = view.getUint8(i) | (view.getUint8(i+1) << 8) | (view.getUint8(i+2) << 16); i += 3; return v; };
 
-  if (!(flags & 0x0001)) out.speed_kph = u16() * 0.01;   // bit 0 is inverted
+  if (!(flags & 0x0001)) out.speed_kph = u16() * 0.01;   // bit 0 inverted
   if (flags & 0x0002) out.avg_speed_kph = u16() * 0.01;
   if (flags & 0x0004) out.cadence_rpm = u16() * 0.5;
   if (flags & 0x0008) out.avg_cadence_rpm = u16() * 0.5;
@@ -426,12 +481,15 @@ function parseIndoorBikeData(view) {
   return out;
 }
 
-function parseHeartRate(view) {
-  const flags = view.getUint8(0);
-  return (flags & 0x01) ? view.getUint16(1, true) : view.getUint8(1);
-}
+/* ===== state ===== */
+let device = null, wakeLock = null, connected = false;
+let recording = false, startedAt = null, lastAt = null, tick = null;
+let samples = [], recent = [], rows = [];
+let powerSum = 0, powerN = 0, cadSum = 0, cadN = 0;
+let joules = 0, inBandMs = 0, rideKm = 0;
+let lastPower = null;
 
-/* ---------- display helpers ---------- */
+/* ===== display ===== */
 function say(html, kind) {
   const el = $("msg");
   el.innerHTML = html;
@@ -441,14 +499,14 @@ function say(html, kind) {
 
 function put(id, value, digits, suffix) {
   const el = $(id);
-  const cell = el.closest(".cell, .stat");
+  const holder = el.closest(".cell, .stat");
   if (value === undefined || value === null || Number.isNaN(value)) {
     el.textContent = "—";
-    if (cell) cell.classList.add("absent");
+    if (holder) holder.classList.add("absent");
     return;
   }
   el.textContent = (typeof value === "number" ? value.toFixed(digits || 0) : value) + (suffix || "");
-  if (cell) cell.classList.remove("absent");
+  if (holder) holder.classList.remove("absent");
 }
 
 function clock(seconds) {
@@ -461,8 +519,7 @@ function clock(seconds) {
 
 function smoothedPower() {
   if (!recent.length) return null;
-  const sum = recent.reduce((a, r) => a + r.power, 0);
-  return sum / recent.length;
+  return recent.reduce((a, r) => a + r.power, 0) / recent.length;
 }
 
 function verdictFor(p) {
@@ -472,7 +529,12 @@ function verdictFor(p) {
   return ["in", "In the zone"];
 }
 
-/* ---------- chart ---------- */
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/* ===== chart ===== */
 function drawTrace() {
   const canvas = $("chart");
   const dpr = window.devicePixelRatio || 1;
@@ -488,13 +550,10 @@ function drawTrace() {
   const css = getComputedStyle(document.documentElement);
   const rule = css.getPropertyValue("--rule").trim() || "#2c373b";
   const inCol = css.getPropertyValue("--in").trim() || "#8fc93a";
-  const hrCol = css.getPropertyValue("--hr").trim() || "#d1527a";
 
-  const pad = 5;
-  const top = gaugeMax();
+  const pad = 5, top = gaugeMax();
   const y = v => pad + (h - pad * 2) * (1 - Math.min(Math.max(v, 0), top) / top);
 
-  // target band, shaded across the whole ride
   ctx.fillStyle = "rgba(143,201,58,0.13)";
   ctx.fillRect(0, y(band.high), w, y(band.low) - y(band.high));
   ctx.strokeStyle = "rgba(143,201,58,0.4)";
@@ -518,7 +577,6 @@ function drawTrace() {
   const t0 = samples[0].t, t1 = Math.max(samples[samples.length - 1].t, t0 + 1);
   const x = t => ((t - t0) / (t1 - t0)) * w;
 
-  // power line (smoothed series, which is what the band judges)
   ctx.beginPath();
   let started = false;
   for (const s of samples) {
@@ -530,179 +588,197 @@ function drawTrace() {
   ctx.lineWidth = 2;
   ctx.lineJoin = "round";
   ctx.stroke();
-
-  // heart rate on its own scale, 60-190 bpm
-  const hrPts = samples.filter(s => typeof s.hr === "number");
-  if (hrPts.length > 1) {
-    const hy = v => pad + (h - pad * 2) * (1 - (Math.min(Math.max(v, 60), 190) - 60) / 130);
-    ctx.beginPath();
-    hrPts.forEach((s, k) => (k ? ctx.lineTo(x(s.t), hy(s.hr)) : ctx.moveTo(x(s.t), hy(s.hr))));
-    ctx.strokeStyle = hrCol;
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([4, 3]);
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
 }
 
-/* ---------- session accounting ---------- */
-function decoupling() {
-  const usable = samples.filter(s => typeof s.hr === "number" && typeof s.power === "number" && s.hr > 0);
-  if (usable.length < 40) return null;
-  const span = usable[usable.length - 1].t - usable[0].t;
-  if (span < 20 * 60 * 1000) return null;
-
-  const mid = usable[0].t + span / 2;
-  const first = usable.filter(s => s.t <= mid);
-  const second = usable.filter(s => s.t > mid);
-  if (first.length < 10 || second.length < 10) return null;
-
-  const ratio = arr => (arr.reduce((a, s) => a + s.power, 0) / arr.length) /
-                       (arr.reduce((a, s) => a + s.hr, 0) / arr.length);
-  const r1 = ratio(first), r2 = ratio(second);
-  if (!r1) return null;
-  return ((r2 - r1) / r1) * 100;
-}
-
-function refreshSession() {
+/* ===== summary ===== */
+function refreshSummary() {
   const elapsed = startedAt === null ? 0 : performance.now() - startedAt;
   put("v-elapsed", clock(elapsed / 1000));
   $("s-inband").textContent = clock(inBandMs / 1000);
   put("s-pct", elapsed > 0 ? (inBandMs / elapsed) * 100 : undefined, 0, "%");
+  put("s-km", rideKm > 0 ? rideKm : undefined, 2, " km");
+  const hours = elapsed / 3600000;
+  put("s-speed", hours > 0 && rideKm > 0 ? rideKm / hours : undefined, 1, " km/h");
   put("s-avg", powerN ? powerSum / powerN : undefined, 0, " W");
   put("s-cad", cadN ? cadSum / cadN : undefined, 0, " rpm");
-  put("s-hr", hrN ? hrSum / hrN : undefined, 0, " bpm");
   put("s-kj", joules ? joules / 1000 : undefined, 0, " kJ");
-
-  const d = decoupling();
-  if (d === null) {
-    put("s-decouple", undefined);
-  } else {
-    const el = $("s-decouple");
-    el.textContent = (d > 0 ? "+" : "") + d.toFixed(1) + "%";
-    el.closest(".stat").classList.remove("absent");
-    el.classList.toggle("good", Math.abs(d) < 5);
-  }
 }
 
-/* ---------- bike notifications ---------- */
+/* ===== notifications ===== */
 function onBikeData(event) {
   const view = event.target.value;
   const bytes = new Uint8Array(view.buffer);
   const hex = Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("");
   $("p-hex").textContent = hex;
 
-  let data;
-  try { data = parseIndoorBikeData(view); }
+  let d;
+  try { d = parseIndoorBikeData(view); }
   catch (err) { $("p-hex").textContent = hex + "  (parse error: " + err.message + ")"; return; }
 
   const now = performance.now();
-  if (startedAt === null) {
-    startedAt = now;
-    tick = setInterval(refreshSession, 500);
-  }
+  const power = typeof d.power_w === "number" ? Math.max(0, d.power_w) : null;
+  if (power !== null) lastPower = power;
 
-  const power = typeof data.power_w === "number" ? Math.max(0, data.power_w) : null;
-  const hr = typeof data.heart_rate_bpm === "number" ? data.heart_rate_bpm : latestHr;
+  // Live readouts run whether or not a ride is being recorded.
+  put("v-power", power === null ? undefined : power, 0);
+  put("v-cadence", d.cadence_rpm, d.cadence_rpm % 1 ? 1 : 0);
+  const kph = power === null ? null : speedFromPower(power);
+  put("v-speed", kph === null ? undefined : kph, 1);
 
   if (power !== null) {
     recent.push({ t: now, power });
     while (recent.length && now - recent[0].t > SMOOTH_MS) recent.shift();
-    powerSum += power; powerN++;
-    if (lastAt !== null) joules += power * ((now - lastAt) / 1000);
   }
-
   const smooth = smoothedPower();
   const [state, text] = verdictFor(smooth);
-
-  // accumulate time in band against the smoothed figure
-  if (lastAt !== null && smooth !== null && smooth >= band.low && smooth <= band.high) {
-    inBandMs += now - lastAt;
-  }
-  lastAt = now;
-
-  if (typeof data.cadence_rpm === "number") { cadSum += data.cadence_rpm; cadN++; }
-
-  samples.push({ t: now, power, smooth, cadence: data.cadence_rpm, speed: data.speed_kph, hr, inBand: state === "in" });
-  if (samples.length > 6000) samples = samples.filter((_, k) => k % 2 === 0);
-
-  rows.push({
-    t_s: ((now - startedAt) / 1000).toFixed(1),
-    power_w: power === null ? "" : power,
-    power_30s: smooth === null ? "" : smooth.toFixed(1),
-    cadence_rpm: data.cadence_rpm === undefined ? "" : data.cadence_rpm,
-    speed_kph: data.speed_kph === undefined ? "" : data.speed_kph.toFixed(2),
-    hr_bpm: hr === null || hr === undefined ? "" : hr,
-    in_band: state === "in" ? 1 : 0,
-    flags: "0x" + data.flags.toString(16).padStart(4, "0"),
-    raw_hex: hex
-  });
-  $("p-count").textContent = rows.length;
-
   $("gauge").dataset.band = state;
   $("v-verdict").textContent = text;
   put("v-smooth", smooth, 0);
-  put("v-power", power === null ? undefined : power, 0);
-  put("v-cadence", data.cadence_rpm, data.cadence_rpm % 1 ? 1 : 0);
-  put("v-hr", hr === null ? undefined : hr, 0);
-
   if (smooth !== null) {
     const needle = $("barNeedle");
     needle.hidden = false;
     needle.style.left = Math.min(100, (smooth / gaugeMax()) * 100) + "%";
   }
 
+  if (!recording) { put("v-distance", rideKm > 0 ? rideKm : undefined, 2); return; }
+
+  const dt = lastAt === null ? 0 : (now - lastAt) / 1000;
+  lastAt = now;
+
+  if (power !== null && dt > 0 && dt < 10) {
+    joules += power * dt;
+    rideKm += speedFromPower(power) * (dt / 3600);
+    powerSum += power; powerN++;
+  }
+  if (typeof d.cadence_rpm === "number") { cadSum += d.cadence_rpm; cadN++; }
+  if (smooth !== null && smooth >= band.low && smooth <= band.high && dt > 0 && dt < 10) {
+    inBandMs += dt * 1000;
+  }
+
+  put("v-distance", rideKm, 2);
+  samples.push({ t: now, power, smooth });
+  if (samples.length > 6000) samples = samples.filter((_, k) => k % 2 === 0);
+
+  rows.push({
+    t_s: ((now - startedAt) / 1000).toFixed(1),
+    power_w: power === null ? "" : power,
+    power_30s: smooth === null ? "" : smooth.toFixed(1),
+    cadence_rpm: d.cadence_rpm === undefined ? "" : d.cadence_rpm,
+    speed_kph: power === null ? "" : speedFromPower(power).toFixed(2),
+    distance_km: rideKm.toFixed(3),
+    resistance: d.resistance === undefined ? "" : d.resistance,
+    in_band: state === "in" ? 1 : 0,
+    flags: "0x" + d.flags.toString(16).padStart(4, "0"),
+    raw_hex: hex
+  });
+  $("p-count").textContent = rows.length;
+
   drawTrace();
-  refreshSession();
+  refreshSummary();
 }
 
-function onHrData(event) {
-  latestHr = parseHeartRate(event.target.value);
-  hrSum += latestHr; hrN++;
-  put("v-hr", latestHr, 0);
-  refreshSession();
+/* ===== ride control ===== */
+function startRide() {
+  samples = []; rows = [];
+  powerSum = powerN = cadSum = cadN = 0;
+  joules = 0; inBandMs = 0; rideKm = 0;
+  startedAt = performance.now();
+  lastAt = null;
+  recording = true;
+  $("start").disabled = true;
+  $("stop").disabled = false;
+  $("recState").dataset.on = "rec";
+  $("recState").lastChild.textContent = "Recording";
+  tick = setInterval(refreshSummary, 500);
+  refreshSummary();
+  drawTrace();
+  say("Recording. Tap <strong>Stop &amp; save</strong> when you're finished.");
 }
 
-/* ---------- connections ---------- */
+function stopRide() {
+  if (!recording) return;
+  const elapsed = performance.now() - startedAt;
+  recording = false;
+  if (tick) { clearInterval(tick); tick = null; }
+  $("start").disabled = !connected;
+  $("stop").disabled = true;
+  $("recState").dataset.on = "0";
+  $("recState").lastChild.textContent = "Not recording";
+
+  if (elapsed < 20000 || powerN === 0) {
+    say("That ride was too short to save.", "error");
+    return;
+  }
+
+  const minutes = elapsed / 60000;
+  rides.unshift({
+    date: new Date().toISOString().slice(0, 10),
+    time: new Date().toTimeString().slice(0, 5),
+    minutes: Math.max(1, Math.round(minutes)),
+    km: Math.round(rideKm * 100) / 100,
+    avgSpeed: Math.round((rideKm / (elapsed / 3600000)) * 10) / 10,
+    avgPower: Math.round(powerSum / powerN),
+    avgCadence: cadN ? Math.round(cadSum / cadN) : null,
+    kj: Math.round(joules / 1000),
+    inBandPct: Math.round((inBandMs / elapsed) * 100),
+    bandLow: band.low,
+    bandHigh: band.high
+  });
+  if (rides.length > 300) rides.length = 300;
+  saveRides();
+  renderRides();
+
+  const r = rides[0];
+  say("Saved: <strong>" + r.minutes + " min</strong>, " + r.km.toFixed(2) + " km, " +
+      r.avgPower + " W average, <strong>" + r.inBandPct + "%</strong> in band.", "win");
+}
+
+/* ===== history ===== */
+function renderRides() {
+  $("ridesEmpty").hidden = rides.length > 0;
+  $("rides").innerHTML = rides.slice(0, 15).map(r =>
+    '<li><span class="when">' + escapeHtml(r.date) + " · " + escapeHtml(r.time) + '</span>' +
+    '<span class="figures">' + r.minutes + " min · " + r.km.toFixed(2) + " km · " +
+    r.avgSpeed.toFixed(1) + " km/h · " + r.avgPower + " W · " +
+    (r.avgCadence ? r.avgCadence + " rpm · " : "") + r.kj + " kJ · " +
+    '<span class="inband">' + r.inBandPct + "% in band</span></span></li>"
+  ).join("");
+}
+
+/* ===== connection ===== */
 function unsupported() {
   say("This browser has no Web Bluetooth. On Android use <strong>Chrome</strong>; on iPhone or iPad " +
       "use <strong>Bluefy</strong>. The page must also be served over HTTPS — a <code>file://</code> " +
       "page will not work.", "error");
 }
 
-async function keepAwake() {
-  try { wakeLock = await navigator.wakeLock.request("screen"); } catch (err) { /* screen may sleep */ }
-}
-
-async function connectBike() {
+async function connect() {
   if (!navigator.bluetooth) return unsupported();
-  $("connectBike").disabled = true;
+  $("connect").disabled = true;
   try {
-    bikeDevice = await navigator.bluetooth.requestDevice({
+    device = await navigator.bluetooth.requestDevice({
       filters: [{ services: [FTMS_SERVICE] }],
       optionalServices: [FTMS_SERVICE]
     });
-    bikeDevice.addEventListener("gattserverdisconnected", () => {
-      $("link-bike").dataset.on = "0";
-      $("connectBike").disabled = false;
+    device.addEventListener("gattserverdisconnected", () => {
+      connected = false;
+      $("bikeState").dataset.on = "0";
+      $("bikeState").lastChild.textContent = "Bike not connected";
+      $("connect").disabled = false;
+      $("start").disabled = true;
       lastAt = null;
-      say("Bike disconnected. Your ride so far is still on screen — copy the CSV before reloading.");
+      if (recording) say("Bike disconnected mid-ride. Tap <strong>Stop &amp; save</strong> to keep what you did.", "error");
     });
 
-    const server = await bikeDevice.gatt.connect();
+    const server = await device.gatt.connect();
     const service = await server.getPrimaryService(FTMS_SERVICE);
-    $("p-device").textContent = "Connected to " + (bikeDevice.name || "unnamed device") + ".";
+    $("p-device").textContent = "Connected to " + (device.name || "unnamed device") + ".";
 
     try {
       const fv = await (await service.getCharacteristic(MACHINE_FEATURE)).readValue();
       const machine = fv.getUint32(0, true);
       const reports = MACHINE_FEATURE_BITS.filter((_, b) => machine >> b & 1);
       $("p-reports").textContent = "Reports: " + (reports.join(", ") || "nothing declared") + ".";
-      if (!reports.includes("power")) {
-        say("This bike does not declare power in its feature list. If the power readout stays " +
-            "empty, it only sends speed and cadence — tell me and I'll switch the gauge to a " +
-            "cadence-and-speed target instead.", "error");
-      }
     } catch (err) {
       $("p-reports").textContent = "Feature characteristic unreadable; reading data anyway.";
     }
@@ -711,87 +787,80 @@ async function connectBike() {
     await ch.startNotifications();
     ch.addEventListener("characteristicvaluechanged", onBikeData);
 
-    $("link-bike").dataset.on = "1";
-    keepAwake();
-    if ($("msg").hidden) say("Bike connected. Pedal to start the clock.");
+    connected = true;
+    $("bikeState").dataset.on = "1";
+    $("bikeState").lastChild.textContent = "Bike connected";
+    $("start").disabled = false;
+    try { wakeLock = await navigator.wakeLock.request("screen"); } catch (err) { /* ok */ }
+    say("Connected. Pedal to see live numbers, then tap <strong>Start ride</strong> to record.");
   } catch (err) {
-    $("connectBike").disabled = false;
+    $("connect").disabled = false;
     if (err && err.name === "NotFoundError") {
       say("No bike chosen. Pedal for a few seconds to wake it, make sure the Yesoul app is closed, then try again.");
     } else {
-      say("Bike connection failed: <strong>" + (err && err.message ? err.message : err) + "</strong>", "error");
+      say("Connection failed: <strong>" + (err && err.message ? err.message : err) + "</strong>", "error");
     }
   }
 }
 
-async function connectHr() {
-  if (!navigator.bluetooth) return unsupported();
-  $("connectHr").disabled = true;
+/* ===== CSV & backup ===== */
+async function copyText(text, okMsg) {
   try {
-    hrDevice = await navigator.bluetooth.requestDevice({
-      filters: [{ services: [HR_SERVICE] }],
-      optionalServices: [HR_SERVICE]
-    });
-    hrDevice.addEventListener("gattserverdisconnected", () => {
-      $("link-hr").dataset.on = "0";
-      $("connectHr").disabled = false;
-    });
-    const server = await hrDevice.gatt.connect();
-    const service = await server.getPrimaryService(HR_SERVICE);
-    const ch = await service.getCharacteristic(HR_MEASUREMENT);
-    await ch.startNotifications();
-    ch.addEventListener("characteristicvaluechanged", onHrData);
-    $("link-hr").dataset.on = "1";
-    keepAwake();
+    await navigator.clipboard.writeText(text);
+    say(okMsg, "win");
+    return true;
   } catch (err) {
-    $("connectHr").disabled = false;
-    if (err && err.name !== "NotFoundError") {
-      say("Heart rate connection failed: <strong>" + (err && err.message ? err.message : err) + "</strong>", "error");
-    }
+    const box = $("dataBox");
+    box.hidden = false;
+    box.value = text;
+    box.select();
+    say("Clipboard blocked — the text is selected below, copy it by hand.");
+    return false;
   }
 }
 
-function resetRide() {
-  samples = []; recent = []; rows = [];
-  startedAt = null; lastAt = null;
-  powerSum = powerN = cadSum = cadN = hrSum = hrN = 0;
-  joules = 0; inBandMs = 0;
-  if (tick) { clearInterval(tick); tick = null; }
-  $("gauge").dataset.band = "none";
-  $("v-verdict").textContent = "Waiting";
-  $("barNeedle").hidden = true;
-  ["v-smooth","v-power","v-cadence","v-hr","s-avg","s-cad","s-hr","s-kj","s-pct","s-decouple"].forEach(id => put(id, undefined));
-  $("v-elapsed").textContent = "0:00";
-  $("s-inband").textContent = "0:00";
-  $("p-count").textContent = "0";
-  drawTrace();
-  say("Ride reset. The connection is still live.");
-}
-
-async function copyCsv() {
-  if (!rows.length) { say("Nothing recorded yet."); return; }
+$("copyCsv").addEventListener("click", () => {
+  if (!rows.length) { say("Nothing recorded yet.", "error"); return; }
   const csv = [CSV_FIELDS.join(",")]
     .concat(rows.map(r => CSV_FIELDS.map(f => r[f] === undefined ? "" : r[f]).join(",")))
     .join("\n");
-  try {
-    await navigator.clipboard.writeText(csv);
-    say("Copied <strong>" + rows.length + " rows</strong> to the clipboard.");
-  } catch (err) {
-    const box = document.createElement("textarea");
-    box.value = csv;
-    box.style.cssText = "width:100%;height:160px;font-family:monospace;font-size:11px;background:#1f282c;color:#e9eff1;border:1px solid #2c373b;border-radius:4px;padding:8px";
-    $("copy").closest(".pane").appendChild(box);
-    box.select();
-    say("Clipboard blocked — the CSV is selected below, copy it by hand.");
-  }
-}
+  copyText(csv, "Copied <strong>" + rows.length + " rows</strong> to the clipboard.");
+});
 
-$("connectBike").addEventListener("click", connectBike);
-$("connectHr").addEventListener("click", connectHr);
-$("reset").addEventListener("click", resetRide);
-$("copy").addEventListener("click", copyCsv);
+$("exportBtn").addEventListener("click", () => {
+  copyText(JSON.stringify({ rides }), "Backup copied — paste it into a note.");
+});
+
+$("importBtn").addEventListener("click", () => {
+  const box = $("dataBox");
+  if (box.hidden) {
+    box.hidden = false;
+    box.value = "";
+    box.placeholder = "Paste a backup here, then tap Paste backup again.";
+    box.focus();
+    say("Paste the backup into the box, then tap <strong>Paste backup</strong> once more.");
+    return;
+  }
+  try {
+    const parsed = JSON.parse(box.value.trim());
+    if (!parsed || !Array.isArray(parsed.rides)) throw new Error("that doesn't look like a backup");
+    rides = parsed.rides;
+    saveRides();
+    renderRides();
+    box.hidden = true;
+    say("Backup restored — " + rides.length + " rides loaded.", "win");
+  } catch (err) {
+    say("Couldn't read that: " + err.message, "error");
+  }
+});
+
+$("connect").addEventListener("click", connect);
+$("start").addEventListener("click", startRide);
+$("stop").addEventListener("click", stopRide);
 window.addEventListener("resize", drawTrace);
 
+loadRides();
+renderRides();
 paintBand();
 drawTrace();
 if (!navigator.bluetooth) unsupported();
